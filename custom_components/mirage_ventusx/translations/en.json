@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Mirage VentusX",
+        "description": "Select the infrared emitter that will transmit commands to the unit. Optionally select a receiver to track state when the physical remote is used.",
+        "data": {
+          "name": "Device name",
+          "infrared_emitter_entity_id": "Infrared emitter",
+          "infrared_receiver_entity_id": "Infrared receiver (optional)"
+        }
+      }
+    },
+    "error": {
+      "no_emitters": "No infrared emitters found. Add one first (e.g. an ESPHome IR proxy device)."
+    },
+    "abort": {
+      "already_configured": "Device is already configured."
+    }
+  }
+}
