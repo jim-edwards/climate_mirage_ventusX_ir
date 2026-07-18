@@ -3,8 +3,9 @@
 No Home Assistant imports — safe to unit-test standalone.
 
 Packet structure: 12 bytes, AEHA-framed at 38 kHz with a 16-bit address of
-0xC4D3.  A hard-coded wake packet is always sent first (180 ms inter-packet
-gap) followed by the 12-byte data packet.
+0xC4D3.  A hard-coded wake packet is always sent first (~33 ms inter-packet
+gap) followed by the 12-byte data packet.  Both frames are combined
+into a single transmission to eliminate network-round-trip latency.
 
 Output: signed-µs mark/space lists suitable for the HA infrared framework's
 ``InfraredCommand.get_raw_timings()`` API.  Positive values = mark (IR LED

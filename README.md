@@ -66,9 +66,50 @@ Home Assistant custom integration for the **Mirage Ventus X Inverter mini-split*
 
 ---
 
-## ESPHome Infrared Proxy Setup
+## ESPHome Native Component
 
-This integration requires an IR blaster that exposes itself as an HA infrared entity. The ESPHome configuration used alongside this integration is in [`side-garage-xaio-ir.yaml`](side-garage-xaio-ir.yaml).
+A standalone ESPHome climate platform is also included in [`components/mirage_ventusx/`](components/mirage_ventusx/). This builds the Mirage VentusX climate control directly into the ESPHome firmware — no Home Assistant integration or HA infrared framework needed. Use this if you want local control without HA, or if you are building a dedicated IR controller node.
+
+### Adding to your ESPHome configuration
+
+```yaml
+external_components:
+  - source:
+      type: git
+      url: https://github.com/jim-edwards/esphome_climate_mirage_ventusX_ir
+      ref: main
+    components: [mirage_ventusx]
+
+remote_transmitter:
+  id: remote_tx
+  pin: GPIO3
+  carrier_duty_percent: 50%
+  non_blocking: true
+  rmt_symbols: 48
+
+# Optional — enables physical-remote state tracking
+remote_receiver:
+  id: remote_rx
+  pin:
+    number: GPIO4
+    inverted: true
+    mode:
+      input: true
+      pullup: true
+  tolerance: 25%
+  idle: 10ms
+
+climate:
+  - platform: mirage_ventusx
+    name: "Mirage Ventus X"
+    transmitter_id: remote_tx
+    receiver_id: remote_rx   # remove this line if you have no receiver
+```
+
+### Notes
+
+- `receiver_id` is optional. When omitted the component is transmit-only and assumes default state on boot.
+- `non_blocking: true` on the transmitter is strongly recommended on ESP32-C3 — it runs the RMT peripheral via interrupt rather than CPU polling, which prevents WiFi contention from garbling IR pulses.
 
 ---
 
@@ -80,7 +121,7 @@ The Mirage VentusX uses **AEHA framing** at 38 kHz with a proprietary 12-byte pa
 - **T (pulse width):** 425 µs
 - **Header:** 8T mark / 4T space
 - **Bit encoding:** 1T mark + 3T space = `1`, 1T mark + 1T space = `0`
-- **Transmission:** wake packet → 180 ms gap → data packet
+- **Transmission:** wake packet → ~33 ms gap → data packet
 
 ### Packet Structure
 

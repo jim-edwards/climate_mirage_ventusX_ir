@@ -160,13 +160,13 @@ void MirageVentusXClimate::transmit_state()
 
   ESP_LOGD(TAG, "TX temp=%d byte5=0x%02X checksum=0x%02X", temp, remote_state[5], remote_state[11]);
 
-  // Send the wakeup packet (hard-coded)
+  // Send the wakeup packet (hard-coded, captured from physical remote)
   esphome::remote_base::AEHAData aeha_wakeup;
   aeha_wakeup.address = VENTUSX_ADDRESS;
   uint8_t wakeup_packet[12] = {
       0x64, 0x40, 0x00, 0x02,
-      0x04, 0x10, 0x03, 0x00,
-      0x00, 0x00, 0x00, 0xB2};
+      0x04, 0x00, 0x03, 0x00,
+      0x00, 0x00, 0x00, 0xA2};
 
   aeha_wakeup.data.assign(wakeup_packet, wakeup_packet + VENTUSX_STATE_LENGTH);
   auto transmit = this->transmitter_->transmit();
@@ -174,7 +174,9 @@ void MirageVentusXClimate::transmit_state()
   esphome::remote_base::AEHAProtocol().encode(tx_data, aeha_wakeup);
   transmit.perform();
 
-  delay(180);
+  // Physical remote gaps ~33 ms between wake and data frames; 180 ms was too long
+  // and caused the A/C to time out before receiving the data packet.
+  delay(33);
 
   // Send the actual data
   esphome::remote_base::AEHAData aeha;
