@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 from typing import Any
@@ -37,7 +36,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.restore_state import RestoreEntity
 
-from .command import MirageVentusXDataCommand, MirageVentusXWakeCommand
+from .command import MirageVentusXCommand
 from .const import (
     CONF_INFRARED_EMITTER_ENTITY_ID,
     CONF_INFRARED_RECEIVER_ENTITY_ID,
@@ -46,7 +45,7 @@ from .const import (
     TEMP_MIN,
     TEMP_STEP,
 )
-from .ir_encoder import VENTUSX_WAKE_PACKET, aeha_decode, build_packet, decode_packet
+from .ir_encoder import aeha_decode, build_packet, decode_packet
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -206,17 +205,10 @@ class MirageVentusXClimate(ClimateEntity, InfraredEmitterConsumerEntity, Restore
         )
 
         data_pkt = build_packet(mode_str, temp_c, fan_mode, swing_mode)
-        wake_cmd = MirageVentusXWakeCommand()
-        data_cmd = MirageVentusXDataCommand(mode_str, temp_c, fan_mode, swing_mode)
-        _LOGGER.debug("Wake packet  : %s", VENTUSX_WAKE_PACKET.hex())
-        _LOGGER.debug("Wake timings : %s", wake_cmd.get_raw_timings())
-        _LOGGER.debug("Data packet  : %s", data_pkt.hex())
-        _LOGGER.debug("Data timings : %s", data_cmd.get_raw_timings())
-        await self._send_command(wake_cmd)
-        # Hardware transmits wake body (~117 ms) + 65.5 ms trailing gap = ~182 ms.
-        # Sleep 250 ms so the hardware finishes before we queue the data packet.
-        await asyncio.sleep(0.25)
-        await self._send_command(data_cmd)
+        _LOGGER.debug("Data packet: %s", data_pkt.hex())
+        cmd = MirageVentusXCommand(mode_str, temp_c, fan_mode, swing_mode)
+        _LOGGER.debug("Combined timings length: %d", len(cmd.get_raw_timings()))
+        await self._send_command(cmd)
         _LOGGER.debug("Wake + data sent")
 
     @callback

@@ -18,7 +18,7 @@ from typing import Final
 # AEHA protocol constants
 # ---------------------------------------------------------------------------
 
-AEHA_CARRIER_KHZ: Final = 38
+AEHA_CARRIER_HZ: Final = 38_000
 _T_US: Final = 425  # 1T in microseconds (AEHA standard)
 
 # ---------------------------------------------------------------------------
@@ -143,28 +143,53 @@ def build_packet(
     return bytes(state)
 
 
-def aeha_timings(address: int, data: bytes) -> list[int]:
+def aeha_timings(address: int, data: bytes, gap_us: int = 65_500) -> list[int]:
     """Encode one AEHA frame as signed-µs mark/space pairs.
 
     Positive values = mark (IR LED on), negative = space (LED off).
-    Includes a 65.5 ms trailing gap so the hardware knows the frame has ended.
-    Compatible with the HA infrared framework's ``get_raw_timings()`` contract.
+    gap_us is the trailing silence appended after the final mark; use 65_500 for
+    the last (or only) frame in a sequence, and a shorter value (e.g. 33_000) for
+    the wake frame when concatenating with a data frame in one transmission.
+
+    Bit order: MSB-first within each byte, high address byte transmitted first.
+    This matches the Mirage VentusX remote and is what the A/C unit expects.
     """
     T = _T_US
     timings: list[int] = [8 * T, -(4 * T)]  # header mark, header space
 
-    for bit in range(16):  # address: 16 bits LSB first
-        timings.append(T)
-        timings.append(-(3 * T) if (address >> bit) & 1 else -T)
-
-    for byte in data:  # data bytes: each LSB first
-        for bit in range(8):
+    # Address: high byte first, each byte MSB-first
+    for byte in [(address >> 8) & 0xFF, address & 0xFF]:
+        for bit in range(7, -1, -1):
             timings.append(T)
             timings.append(-(3 * T) if (byte >> bit) & 1 else -T)
 
-    timings.append(T)       # trailing mark
-    timings.append(-65_500)  # trailing gap (65.5 ms idle)
+    # Data bytes: each byte MSB-first
+    for byte in data:
+        for bit in range(7, -1, -1):
+            timings.append(T)
+            timings.append(-(3 * T) if (byte >> bit) & 1 else -T)
+
+    timings.append(T)         # trailing mark
+    timings.append(-gap_us)   # trailing gap
     return timings
+
+
+# Inter-packet gap used by the physical Mirage remote between wake and data frames.
+# Sending both frames as one combined timing list avoids HA→ESPHome network
+# round-trip overhead between the two commands, keeping the gap deterministic.
+_WAKE_GAP_US: Final = 33_000
+
+
+def mirage_combined_timings(address: int, wake_data: bytes, cmd_data: bytes) -> list[int]:
+    """Return wake + data frames concatenated as a single signed-µs timing list.
+
+    Using one combined transmission eliminates the variable network latency that
+    would otherwise be introduced between two separate _send_command calls.
+    """
+    return (
+        aeha_timings(address, wake_data, gap_us=_WAKE_GAP_US)
+        + aeha_timings(address, cmd_data, gap_us=65_500)
+    )
 
 
 # ---------------------------------------------------------------------------

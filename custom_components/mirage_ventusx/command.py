@@ -5,28 +5,21 @@ from __future__ import annotations
 from homeassistant.components.infrared import InfraredCommand
 
 from .ir_encoder import (
-    AEHA_CARRIER_KHZ,
+    AEHA_CARRIER_HZ,
     VENTUSX_ADDRESS,
     VENTUSX_WAKE_PACKET,
-    aeha_timings,
     build_packet,
+    mirage_combined_timings,
 )
 
 
-class MirageVentusXWakeCommand(InfraredCommand):
-    """Wake frame only — sent first, before the data frame."""
+class MirageVentusXCommand(InfraredCommand):
+    """Wake frame immediately followed by the data frame in a single transmission.
 
-    _timings: list[int] = aeha_timings(VENTUSX_ADDRESS, VENTUSX_WAKE_PACKET)
-
-    def __init__(self) -> None:
-        super().__init__(modulation=AEHA_CARRIER_KHZ, repeat_count=0)
-
-    def get_raw_timings(self) -> list[int]:
-        return self._timings
-
-
-class MirageVentusXDataCommand(InfraredCommand):
-    """Data frame — sent after a ~250 ms delay following the wake frame."""
+    Combining both frames eliminates the HA→ESPHome network round-trip that would
+    otherwise introduce variable latency between them, ensuring the inter-packet
+    gap stays close to what the physical remote produces (~33 ms).
+    """
 
     def __init__(
         self,
@@ -35,9 +28,10 @@ class MirageVentusXDataCommand(InfraredCommand):
         fan_mode: str,
         swing_mode: str,
     ) -> None:
-        super().__init__(modulation=AEHA_CARRIER_KHZ, repeat_count=0)
-        self._timings = aeha_timings(
+        super().__init__(modulation=AEHA_CARRIER_HZ, repeat_count=0)
+        self._timings = mirage_combined_timings(
             VENTUSX_ADDRESS,
+            VENTUSX_WAKE_PACKET,
             build_packet(hvac_mode, temp_c, fan_mode, swing_mode),
         )
 
